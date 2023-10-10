@@ -3,6 +3,8 @@
 #include <pcap/pcap.h>
 #include <cstdlib>
 #include <stdint.h>
+#include <vector>
+#include "ip_info.h"
 
 #define MAX_DHCP_CHADDR_LENGTH 16
 #define MAX_DHCP_SNAME_LENGTH 64
@@ -36,8 +38,11 @@ struct dhcp_packet
     char options[MAX_DHCP_OPTIONS_LENGTH];        /* options */
 };
 
-void DHCP_monitor(std::string filename, std::string interface);
+void DHCP_monitor(int argc, char *argv[]);
+
 pcap_t *Open_pcap_live(std::string interface);
 pcap_t *Open_pcap_offline(std::string filename);
 void Exit_program(const std::string &message);
 void Packet_caller(unsigned char *user_data, const struct pcap_pkthdr *pkthdr, const unsigned char *packet);
+void calculate_overlapping_prefix_utilization(std::string ip_str);
+bool isIPAddressInSubnet(const std::string &ip, const std::string &subnet);
