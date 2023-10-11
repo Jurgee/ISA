@@ -8,13 +8,42 @@
 #include <netinet/ether.h>
 #include <map>
 #include "arg_parser.h"
+#include <ncurses.h>
 
 std::vector<std::string> ipPrefixes; // Declare ipPrefixes as a global variable
+std::vector<IPInfo> IPInfos;
 
+void initializeNcurses()
+{
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    refresh();
+}
+
+void cleanupNcurses()
+{
+    endwin();
+}
+
+void displayStatistics()
+{
+    clear();
+    printw("IP-Prefix Max-hosts Allocated addresses Utilization\n");
+
+    for (const IPInfo &info : IPInfos)
+    {
+        printw("%s %d %d %.2f%%\n", info.ip_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
+    }
+
+    refresh();
+}
 void DHCP_monitor(int argc, char *argv[])
 {
     struct arguments args = Arg_parse(argc, argv);
     ipPrefixes = args.ipPrefixes;
+    IPInfos = Convert_to_IP_info(ipPrefixes);
 
     if (args.filename != "NULL") // if we have file -r
     {
@@ -46,6 +75,7 @@ void Packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_
                 inet_ntop(AF_INET, &(dhcp->yiaddr.s_addr), ip_str, INET_ADDRSTRLEN);
 
                 calculate_overlapping_prefix_utilization(ip_str);
+                displayStatistics();
             }
         }
     }
@@ -143,7 +173,6 @@ bool isIPAddressInSubnet(const std::string &ip, const std::string &subnet)
 
 void calculate_overlapping_prefix_utilization(std::string ip_str)
 {
-    std::vector<IPInfo> IPInfos = Convert_to_IP_info(ipPrefixes);
     // Iterate through the IPInfo objects
     for (IPInfo &info : IPInfos)
     {
@@ -156,12 +185,4 @@ void calculate_overlapping_prefix_utilization(std::string ip_str)
             info.utilization = (static_cast<double>(info.allocated_addresses) / static_cast<double>(info.max_hosts)) * 100.0;
         }
     }
-
-    // Print the updated information
-    std::cout << "IP-Prefix Max-hosts Allocated addresses Utilization" << std::endl;
-    for (const IPInfo &info : IPInfos)
-    {
-        std::cout << info.ip_name << " " << info.max_hosts << " " << info.allocated_addresses << " " << info.utilization << "%" << std::endl;
-    }
-    exit(0);
 }

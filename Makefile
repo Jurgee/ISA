@@ -6,7 +6,7 @@ OBJS := $(SRCS:%.cpp=%.o)
 DEPS := $(SRCS:%.cpp=%.d)
 
 TARGET = dhcp-stats
-LIBS = -lpcap
+LIBS = -lpcap -lncurses  
 
 .PHONY: all clean
 
@@ -21,4 +21,4 @@ $(DEPS):
 include $(wildcard $(DEPS))
 
 clean:
-	$(RM) $(OBJS) $(TARGET)
+	$(RM) $(OBJS) $(DEPS) $(TARGET)  
