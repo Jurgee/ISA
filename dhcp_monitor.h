@@ -47,6 +47,11 @@ void Exit_program(const std::string &message);
 void Packet_caller(unsigned char *user_data, const struct pcap_pkthdr *pkthdr, const unsigned char *packet);
 void calculate_overlapping_prefix_utilization(std::string ip_str);
 bool isIPAddressInSubnet(const std::string &ip, int prefix);
+
+//ncurses functions
 void initializeNcurses();
 void cleanupNcurses();
 void displayStatistics();
+
+//syslog functions
+void logExceededPrefix(const std::string &prefix);

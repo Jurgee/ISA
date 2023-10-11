@@ -9,6 +9,7 @@
 #include <map>
 #include "arg_parser.h"
 #include <ncurses.h>
+#include <syslog.h>
 
 std::vector<std::string> ipPrefixes; // Declare ipPrefixes as a global variable
 std::vector<IPInfo> IPInfos;
@@ -34,13 +35,15 @@ void displayStatistics()
 
     for (const IPInfo &info : IPInfos)
     {
-        printw("%s %d %d %.2f%%\n", info.ip_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
+        printw("%s %d %d %.2f%%\n", info.ip_full_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
     }
 
     refresh();
 }
 void DHCP_monitor(int argc, char *argv[])
 {
+    openlog("dhcp-monitor", LOG_PID, LOG_DAEMON); // open syslog
+
     struct arguments args = Arg_parse(argc, argv);
     ipPrefixes = args.ipPrefixes;
     IPInfos = Convert_to_IP_info(ipPrefixes);
@@ -53,6 +56,8 @@ void DHCP_monitor(int argc, char *argv[])
     {
         Open_pcap_live(args.interface);
     }
+
+    closelog(); // Close syslog
 }
 
 void Packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_char *packet)
@@ -183,6 +188,19 @@ void calculate_overlapping_prefix_utilization(std::string ip_str)
 
             // Update utilization if needed
             info.utilization = (static_cast<double>(info.allocated_addresses) / static_cast<double>(info.max_hosts)) * 100.0;
+
+            // Check if utilization exceeds 50%
+            if (info.utilization > 50.0)
+            {
+                // Log the message for the exceeded prefix
+                logExceededPrefix(info.ip_full_name);
+            }
         }
     }
+}
+
+void logExceededPrefix(const std::string &prefix)
+{
+    std::string logMessage = "prefix " + prefix + " exceeded 50% of allocations.";
+    syslog(LOG_NOTICE, "%s", logMessage.c_str());
 }
