@@ -1,66 +1,45 @@
 #include <iostream>
 #include <arpa/inet.h>
 #include <pcap/pcap.h>
-#include <cstdlib>
 #include "dhcp_monitor.h"
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <netinet/ether.h>
-#include <map>
 #include "arg_parser.h"
 #include <ncurses.h>
 #include <syslog.h>
+#include "ncurses_logger.h"
+#include <set>
 
-std::vector<std::string> ipPrefixes; // Declare ipPrefixes as a global variable
+// global variables
 std::vector<IPInfo> IPInfos;
 
-void initializeNcurses()
-{
-    initscr();
-    cbreak();
-    noecho();
-    keypad(stdscr, TRUE);
-    refresh();
-}
+// Define a set to store IP addresses that the server has already sent
+std::set<std::string> sentIPs;
 
-void cleanupNcurses()
-{
-    endwin();
-}
-
-void displayStatistics()
-{
-    clear();
-    printw("IP-Prefix Max-hosts Allocated addresses Utilization\n");
-
-    for (const IPInfo &info : IPInfos)
-    {
-        printw("%s %d %d %.2f%%\n", info.ip_full_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
-    }
-
-    refresh();
-}
+// DHCP main function
 void DHCP_monitor(int argc, char *argv[])
 {
-    openlog("dhcp-monitor", LOG_PID, LOG_DAEMON); // open syslog
+    openlog("dhcp-stats", LOG_PID, LOG_DAEMON); // open syslog
 
-    struct arguments args = Arg_parse(argc, argv);
-    ipPrefixes = args.ipPrefixes;
-    IPInfos = Convert_to_IP_info(ipPrefixes);
+    struct arguments args = arg_parse(argc, argv);
+    std::vector<std::string> ipPrefixes = args.ipPrefixes;
+    IPInfos = convert_to_IP_info(ipPrefixes);
 
     if (args.filename != "NULL") // if we have file -r
     {
-        Open_pcap_offline(args.filename);
+        open_pcap_offline(args.filename);
     }
     else if (args.interface != "NULL") // if we have interface -i
     {
-        Open_pcap_live(args.interface);
+        open_pcap_live(args.interface);
     }
 
     closelog(); // Close syslog
 }
 
-void Packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_char *packet)
+// pcap functions
+void packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_char *packet)
 {
     struct ip *ip_header = (struct ip *)(packet + 14);
     struct ether_header *ethernet = (struct ether_header *)packet;
@@ -71,7 +50,7 @@ void Packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_
 
     if (ntohs(ethernet->ether_type) == ETHERTYPE_IP)
     {
-        if (udp_header->uh_sport == htons(67) || udp_header->uh_dport == htons(68))
+        if (udp_header->source == htons(67) || udp_header->dest == htons(68))
         {
             struct dhcp_packet *dhcp = (struct dhcp_packet *)(packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header));
             if (dhcp->options[6] == DHCPACK)
@@ -79,13 +58,19 @@ void Packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_
                 char ip_str[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &(dhcp->yiaddr.s_addr), ip_str, INET_ADDRSTRLEN);
 
-                calculate_overlapping_prefix_utilization(ip_str);
-                displayStatistics();
+                if (!check_ip_adress(ip_str)) // if we have new ip adress
+                {
+                    calculate_overlapping_prefix_utilization(ip_str);
+                    std::sort(IPInfos.begin(), IPInfos.end(), sort_IP_info); // sort by ip_full_name
+                }
+                display_statistics();
             }
         }
     }
 }
-pcap_t *Open_pcap_live(std::string interface)
+
+// pcap functions --live mode
+pcap_t *open_pcap_live(std::string interface)
 {
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *handle;
@@ -95,57 +80,71 @@ pcap_t *Open_pcap_live(std::string interface)
     handle = pcap_open_live(interface.c_str(), BUFSIZ, 0, 1000, errbuf);
     if (handle == nullptr)
     {
-        Exit_program("Couldn't open device");
+        exit_program("Couldn't open device");
     }
     if (pcap_compile(handle, &fp, filter.c_str(), 0, 0) == -1)
     {
-        Exit_program("Couldn't parse filter");
+        exit_program("Couldn't parse filter");
     }
     if (pcap_setfilter(handle, &fp) == -1)
     {
-        Exit_program("Couldn't install filter");
+        exit_program("Couldn't install filter");
     }
-    pcap_loop(handle, -1, Packet_caller, NULL);
-    pcap_close(handle);
-    return handle;
-}
+    while (true)
+    {
+        pcap_loop(handle, -1, packet_caller, NULL);
+    }
 
-pcap_t *Open_pcap_offline(std::string filename)
+    pcap_close(handle);
+
+    return nullptr;
+}
+// pcap functions --offline mode
+pcap_t *open_pcap_offline(std::string filename)
 {
-    pcap_t *handle;
     char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *handle;
+    std::string filter = "port 67 or port 68";
+    bpf_program fp;
 
     handle = pcap_open_offline(filename.c_str(), errbuf);
-    if (handle == NULL)
+    if (handle == nullptr)
     {
-        Exit_program("Could not open file");
+        exit_program("Couldn't open device");
     }
-    return handle;
+    if (pcap_compile(handle, &fp, filter.c_str(), 0, 0) == -1)
+    {
+        exit_program("Couldn't parse filter");
+    }
+    if (pcap_setfilter(handle, &fp) == -1)
+    {
+        exit_program("Couldn't install filter");
+    }
+    while (true)
+    {
+        pcap_loop(handle, -1, packet_caller, NULL);
+    }
+
+    pcap_close(handle); // Close the pcap handle
+    return nullptr;
 }
 
-void Exit_program(const std::string &message)
-{
-    fprintf(stderr, "%s \n", message.c_str());
-    exit(1);
-}
-
-bool isIPAddressInSubnet(const std::string &ip, const std::string &subnet)
+// main compare function
+bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet)
 {
     struct in_addr ipAddr, networkAddr, subnetMask;
 
     // Parse the IP address
     if (inet_pton(AF_INET, ip.c_str(), &ipAddr) != 1)
     {
-        std::cerr << "Invalid IP address format: " << ip << std::endl;
-        return false;
+        exit_program("Invalid IP address format: " + ip);
     }
 
     // Parse the subnet and calculate subnet mask
     size_t slashPos = subnet.find('/');
     if (slashPos == std::string::npos)
     {
-        std::cerr << "Invalid subnet format: " << subnet << std::endl;
-        return false;
+        exit_program("Invalid subnet format: " + subnet);
     }
 
     std::string subnetIP = subnet.substr(0, slashPos);
@@ -154,8 +153,7 @@ bool isIPAddressInSubnet(const std::string &ip, const std::string &subnet)
     // Parse the subnet IP address
     if (inet_pton(AF_INET, subnetIP.c_str(), &networkAddr) != 1)
     {
-        std::cerr << "Invalid subnet IP format: " << subnetIP << std::endl;
-        return false;
+        exit_program("Invalid subnet IP format: " + subnetIP);
     }
 
     // Calculate the subnet mask
@@ -176,12 +174,13 @@ bool isIPAddressInSubnet(const std::string &ip, const std::string &subnet)
     }
 }
 
+// calculate utilization
 void calculate_overlapping_prefix_utilization(std::string ip_str)
 {
     // Iterate through the IPInfo objects
     for (IPInfo &info : IPInfos)
     {
-        if (isIPAddressInSubnet(ip_str, info.ip_full_name))
+        if (is_IP_address_in_subnet(ip_str, info.ip_full_name))
         {
             // Increment the count for the prefix in IPInfo
             info.allocated_addresses++;
@@ -193,14 +192,36 @@ void calculate_overlapping_prefix_utilization(std::string ip_str)
             if (info.utilization > 50.0)
             {
                 // Log the message for the exceeded prefix
-                logExceededPrefix(info.ip_full_name);
+                log_exceeded_prefix(info.ip_full_name);
             }
         }
     }
 }
 
-void logExceededPrefix(const std::string &prefix)
+// display statistics
+void display_statistics()
 {
-    std::string logMessage = "prefix " + prefix + " exceeded 50% of allocations.";
-    syslog(LOG_NOTICE, "%s", logMessage.c_str());
+    clear();
+    printw("IP-Prefix Max-hosts Allocated addresses Utilization\n");
+
+    for (const IPInfo &info : IPInfos)
+    {
+        printw("%s %d %d %.2f%%\n", info.ip_full_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
+    }
+    refresh();
+}
+
+// check if we have new ip adress
+bool check_ip_adress(std::string ip_str)
+{
+    // Check if the IP address is in the set of sentIPs
+    if (sentIPs.find(ip_str) != sentIPs.end())
+    {
+        // This IP address has already been sent, skip processing
+        return true;
+    }
+
+    // Add the IP address to the set of sentIPs
+    sentIPs.insert(ip_str);
+    return false;
 }

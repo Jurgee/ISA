@@ -3,15 +3,14 @@
 #include <vector>
 #include "arg_parser.h"
 #include "dhcp_monitor.h"
-
+#include "ncurses_logger.h"
 
 int main(int argc, char *argv[])
 {
-    initializeNcurses();
+    initialize_ncurses();
 
     DHCP_monitor(argc, argv);
-    // TODO pridat serazeni
 
-    cleanupNcurses();
+    cleanup_ncurses();
     return 0;
 }

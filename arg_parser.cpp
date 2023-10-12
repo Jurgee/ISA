@@ -22,7 +22,7 @@ bool is_IPv4_valid(std::vector<std::string> &addresses, char *ip_address)
 }
 
 // main function to parse
-struct arguments Arg_parse(int argc, char *const *argv)
+struct arguments arg_parse(int argc, char *const *argv)
 {
     std::vector<std::string> empty_vector{"NULL"};
     struct arguments args = {"NULL", "NULL", empty_vector};
@@ -58,6 +58,7 @@ struct arguments Arg_parse(int argc, char *const *argv)
     return args;
 }
 
+// print help
 void print_help()
 {
     std::cerr << "./dhcp-stats [-r <filename>] [-i <interface-name>] <ip-prefix> [ <ip-prefix> [ ... ] ] \n \
@@ -68,6 +69,7 @@ void print_help()
     return;
 }
 
+// validate input
 void validate(struct arguments *args)
 {
     if (args->filename == "NULL" && args->interface == "NULL")
