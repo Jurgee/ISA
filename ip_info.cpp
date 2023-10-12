@@ -4,7 +4,8 @@
 #include "ip_info.h"
 #include <cmath>
 
-std::vector<IPInfo> Convert_to_IP_info(const std::vector<std::string> &prefixes)
+//convert vector of strings to vector of IPInfo
+std::vector<IPInfo> convert_to_IP_info(const std::vector<std::string> &prefixes)
 {
     std::vector<IPInfo> IPInfos;
     for (const std::string &prefix : prefixes)
@@ -17,7 +18,7 @@ std::vector<IPInfo> Convert_to_IP_info(const std::vector<std::string> &prefixes)
             int prefix_length = std::stoi(prefix.substr(slash_pos + 1));
 
             // Výpočet max_hosts pro daný síťový prefix
-            int max_hosts = calculateMaxHosts(prefix_length);
+            int max_hosts = calculate_max_hosts(prefix_length);
 
             // Přidání IPInfo s maximálním počtem hostitelů do výstupního vektoru
             IPInfos.push_back(IPInfo(ip_fullname, ip_name, prefix_length, max_hosts, 0, 0.0));
@@ -30,8 +31,15 @@ std::vector<IPInfo> Convert_to_IP_info(const std::vector<std::string> &prefixes)
     return IPInfos;
 }
 
-int calculateMaxHosts(int prefix_length)
+//calculate max hosts for given prefix
+int calculate_max_hosts(int prefix_length)
 {
     int max_hosts = pow(2, (32 - prefix_length)) - 2;
     return max_hosts;
+}
+
+//sort IPInfo by ip_full_name
+bool sort_IP_info(const IPInfo &a, const IPInfo &b)
+{
+    return a.ip_full_name > b.ip_full_name;
 }
