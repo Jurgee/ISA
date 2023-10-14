@@ -1,10 +1,14 @@
+// ISA 2023/2024
+// Author : Jiří Štípek (xstipe02)
+// Description: Logger and ncurses functions
+
 #include "ncurses_logger.h"
 
 // Log the given prefix to syslog
 void log_exceeded_prefix(const std::string &prefix)
 {
-    std::string logMessage = "prefix " + prefix + " exceeded 50% of allocations.";
-    syslog(LOG_NOTICE, "%s", logMessage.c_str());
+    std::string log_message = "prefix " + prefix + " exceeded 50% of allocations.";
+    syslog(LOG_NOTICE, "%s", log_message.c_str());
 
     std::cout << "prefix %s exceeded 50% of allocations." << prefix << std::endl;
 }
@@ -22,7 +26,6 @@ void initialize_ncurses()
 // Cleanup ncurses
 void cleanup_ncurses()
 {
-
     endwin();
 }
 

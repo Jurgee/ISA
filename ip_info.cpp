@@ -1,8 +1,8 @@
-#include <iostream>
-#include <string>
-#include <vector>
+// ISA 2023/2024
+// Author : Jiří Štípek (xstipe02)
+// Description: IP info struct and functions
+
 #include "ip_info.h"
-#include <cmath>
 
 //convert vector of strings to vector of IPInfo
 std::vector<IPInfo> convert_to_IP_info(const std::vector<std::string> &prefixes)
