@@ -1,7 +1,9 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <cmath>
 
+// Struct for storing IP info
 struct IPInfo
 {
     std::string ip_full_name;
@@ -15,5 +17,7 @@ struct IPInfo
         : ip_full_name(fullname), ip_name(name), prefix(p), max_hosts(max), allocated_addresses(allocated), utilization(util) {}
 };
 
-std::vector<IPInfo> Convert_to_IP_info(const std::vector<std::string> &prefixes);
-int calculateMaxHosts(int prefix_length);
+//functions
+std::vector<IPInfo> convert_to_IP_info(const std::vector<std::string> &prefixes);
+int calculate_max_hosts(int prefix_length);
+bool sort_IP_info(const IPInfo &a, const IPInfo &b);

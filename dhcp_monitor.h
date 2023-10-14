@@ -1,17 +1,25 @@
-#include <iostream>
 #include <arpa/inet.h>
 #include <pcap/pcap.h>
 #include <cstdlib>
 #include <stdint.h>
 #include <vector>
 #include "ip_info.h"
-
+#include <iostream>
+#include <netinet/ip.h>
+#include <netinet/udp.h>
+#include <netinet/ether.h>
+#include "arg_parser.h"
+#include <ncurses.h>
+#include <syslog.h>
+#include "ncurses_logger.h"
+#include <set>
 
 #define MAX_DHCP_CHADDR_LENGTH 16
 #define MAX_DHCP_SNAME_LENGTH 64
 #define MAX_DHCP_FILE_LENGTH 128
 #define MAX_DHCP_OPTIONS_LENGTH 312
 
+// DHCP message types
 #define DHCPDISCOVER 1
 #define DHCPOFFER 2
 #define DHCPREQUEST 3
@@ -20,6 +28,7 @@
 #define DHCPNACK 6
 #define DHCPRELEASE 7
 
+//struct for dhcp packet
 struct dhcp_packet
 {
     u_int8_t op;                                  /* packet type */
@@ -39,19 +48,23 @@ struct dhcp_packet
     char options[MAX_DHCP_OPTIONS_LENGTH];        /* options */
 };
 
+//functions
+
 void DHCP_monitor(int argc, char *argv[]);
 
-pcap_t *Open_pcap_live(std::string interface);
-pcap_t *Open_pcap_offline(std::string filename);
-void Exit_program(const std::string &message);
-void Packet_caller(unsigned char *user_data, const struct pcap_pkthdr *pkthdr, const unsigned char *packet);
+//pcap functions
+pcap_t *open_pcap_live(std::string interface);
+pcap_t *open_pcap_offline(std::string filename);
+void exit_program(const std::string &message);
+void packet_caller(unsigned char *user_data, const struct pcap_pkthdr *pkthdr, const unsigned char *packet);
 void calculate_overlapping_prefix_utilization(std::string ip_str);
-bool isIPAddressInSubnet(const std::string &ip, int prefix);
+bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet, int prefix);
+bool check_IP_address(std::string ip_str);
 
 //ncurses functions
-void initializeNcurses();
-void cleanupNcurses();
-void displayStatistics();
+void initialize_ncurses();
+void cleanup_ncurses();
+void display_statistics();
 
 //syslog functions
-void logExceededPrefix(const std::string &prefix);
+void log_exceeded_prefix(const std::string &prefix);
