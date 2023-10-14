@@ -1,30 +1,23 @@
-#include <iostream>
-#include <arpa/inet.h>
-#include <pcap/pcap.h>
+// ISA 2023/2024
+// Author : Jiří Štípek (xstipe02)
+// Description: Main functions of the program
+
 #include "dhcp_monitor.h"
-#include <netinet/ip.h>
-#include <netinet/udp.h>
-#include <netinet/ether.h>
-#include "arg_parser.h"
-#include <ncurses.h>
-#include <syslog.h>
-#include "ncurses_logger.h"
-#include <set>
 
 // global variables
-std::vector<IPInfo> IPInfos;
+std::vector<IPInfo> IP_infos;
 
 // Define a set to store IP addresses that the server has already sent
-std::set<std::string> sentIPs;
+std::set<std::string> sent_IPs;
 
-// DHCP main function
+// DHCP main function 
 void DHCP_monitor(int argc, char *argv[])
 {
     openlog("dhcp-stats", LOG_PID, LOG_DAEMON); // open syslog
 
     struct arguments args = arg_parse(argc, argv);
-    std::vector<std::string> ipPrefixes = args.ipPrefixes;
-    IPInfos = convert_to_IP_info(ipPrefixes);
+    std::vector<std::string> IP_prefixes = args.IP_prefixes;
+    IP_infos = convert_to_IP_info(IP_prefixes);
 
     if (args.filename != "NULL") // if we have file -r
     {
@@ -34,7 +27,6 @@ void DHCP_monitor(int argc, char *argv[])
     {
         open_pcap_live(args.interface);
     }
-
     closelog(); // Close syslog
 }
 
@@ -58,10 +50,10 @@ void packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_
                 char ip_str[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &(dhcp->yiaddr.s_addr), ip_str, INET_ADDRSTRLEN);
 
-                if (!check_ip_adress(ip_str)) // if we have new ip adress
+                if (!check_IP_address(ip_str)) // if we have new ip adress
                 {
                     calculate_overlapping_prefix_utilization(ip_str);
-                    std::sort(IPInfos.begin(), IPInfos.end(), sort_IP_info); // sort by ip_full_name
+                    std::sort(IP_infos.begin(), IP_infos.end(), sort_IP_info); // sort by ip_full_name
                 }
                 display_statistics();
             }
@@ -90,6 +82,7 @@ pcap_t *open_pcap_live(std::string interface)
     {
         exit_program("Couldn't install filter");
     }
+    initialize_ncurses();
     while (true)
     {
         pcap_loop(handle, -1, packet_caller, NULL);
@@ -120,6 +113,7 @@ pcap_t *open_pcap_offline(std::string filename)
     {
         exit_program("Couldn't install filter");
     }
+    initialize_ncurses();
     while (true)
     {
         pcap_loop(handle, -1, packet_caller, NULL);
@@ -129,10 +123,10 @@ pcap_t *open_pcap_offline(std::string filename)
     return nullptr;
 }
 
-// main compare function
-bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet)
+// func for address in subnet
+bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet, int prefix)
 {
-    struct in_addr ipAddr, networkAddr, subnetMask;
+    struct in_addr ipAddr, networkAddr, subnetMask, subnetAddress;
 
     // Parse the IP address
     if (inet_pton(AF_INET, ip.c_str(), &ipAddr) != 1)
@@ -140,27 +134,16 @@ bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet)
         exit_program("Invalid IP address format: " + ip);
     }
 
-    // Parse the subnet and calculate subnet mask
-    size_t slashPos = subnet.find('/');
-    if (slashPos == std::string::npos)
-    {
-        exit_program("Invalid subnet format: " + subnet);
-    }
-
-    std::string subnetIP = subnet.substr(0, slashPos);
-    int prefixLength = std::stoi(subnet.substr(slashPos + 1));
-
     // Parse the subnet IP address
-    if (inet_pton(AF_INET, subnetIP.c_str(), &networkAddr) != 1)
+    if (inet_pton(AF_INET, subnet.c_str(), &networkAddr) != 1)
     {
-        exit_program("Invalid subnet IP format: " + subnetIP);
+        exit_program("Invalid subnet IP format: " + subnet);
     }
 
     // Calculate the subnet mask
-    subnetMask.s_addr = htonl(0xFFFFFFFF << (32 - prefixLength));
+    subnetMask.s_addr = htonl(0xFFFFFFFF << (32 - prefix));
 
     // Calculate the network address for the subnet
-    struct in_addr subnetAddress;
     subnetAddress.s_addr = networkAddr.s_addr & subnetMask.s_addr;
 
     // Check if the IP address falls within the subnet
@@ -174,13 +157,13 @@ bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet)
     }
 }
 
-// calculate utilization
+// calculate utilization for each prefix
 void calculate_overlapping_prefix_utilization(std::string ip_str)
 {
     // Iterate through the IPInfo objects
-    for (IPInfo &info : IPInfos)
+    for (IPInfo &info : IP_infos)
     {
-        if (is_IP_address_in_subnet(ip_str, info.ip_full_name))
+        if (is_IP_address_in_subnet(ip_str, info.ip_name, info.prefix))
         {
             // Increment the count for the prefix in IPInfo
             info.allocated_addresses++;
@@ -198,13 +181,13 @@ void calculate_overlapping_prefix_utilization(std::string ip_str)
     }
 }
 
-// display statistics
+// display statistics in ncurses window 
 void display_statistics()
 {
     clear();
     printw("IP-Prefix Max-hosts Allocated addresses Utilization\n");
 
-    for (const IPInfo &info : IPInfos)
+    for (const IPInfo &info : IP_infos)
     {
         printw("%s %d %d %.2f%%\n", info.ip_full_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
     }
@@ -212,16 +195,16 @@ void display_statistics()
 }
 
 // check if we have new ip adress
-bool check_ip_adress(std::string ip_str)
+bool check_IP_address(std::string ip_str)
 {
-    // Check if the IP address is in the set of sentIPs
-    if (sentIPs.find(ip_str) != sentIPs.end())
+    // Check if the IP address is in the set of sent_IPs
+    if (sent_IPs.find(ip_str) != sent_IPs.end())
     {
         // This IP address has already been sent, skip processing
         return true;
     }
 
-    // Add the IP address to the set of sentIPs
-    sentIPs.insert(ip_str);
+    // Add the IP address to the set of sent_IPs
+    sent_IPs.insert(ip_str);
     return false;
 }
