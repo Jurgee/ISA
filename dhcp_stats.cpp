@@ -5,6 +5,7 @@
 #include "dhcp_monitor.h"
 #include "ncurses_logger.h"
 
+// main function
 int main(int argc, char *argv[])
 {
     DHCP_monitor(argc, argv);

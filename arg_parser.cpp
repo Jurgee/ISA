@@ -1,6 +1,6 @@
 // ISA 2023/2024
 // Author : Jiří Štípek (xstipe02)
-// Description: Agrument parser
+// Description: Agrument parser functions
 
 #include "arg_parser.h"
 

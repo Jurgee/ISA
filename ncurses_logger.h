@@ -2,7 +2,6 @@
 #include <ncurses.h>
 #include <syslog.h>
 
-//functions
 void log_exceeded_prefix(const std::string &prefix);
 void initialize_ncurses();
 void cleanup_ncurses();
