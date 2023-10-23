@@ -23,5 +23,4 @@ bool is_IPv4_valid(const std::vector<std::string> &ipAddresses);
 // main function to parse
 struct arguments arg_parse(int argc, char *const *argv);
 
-void print_help();
 void validate(struct arguments *args);
