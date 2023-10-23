@@ -13,6 +13,8 @@
 #include <syslog.h>
 #include "ncurses_logger.h"
 #include <set>
+#include <iomanip> 
+#include <csignal>
 
 #define MAX_DHCP_CHADDR_LENGTH 16
 #define MAX_DHCP_SNAME_LENGTH 64
@@ -53,6 +55,7 @@ struct dhcp_packet
 void DHCP_monitor(int argc, char *argv[]);
 
 //pcap functions
+
 pcap_t *open_pcap_live(std::string interface);
 pcap_t *open_pcap_offline(std::string filename);
 void exit_program(const std::string &message);
@@ -61,10 +64,7 @@ void calculate_overlapping_prefix_utilization(std::string ip_str);
 bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet, int prefix);
 bool check_IP_address(std::string ip_str);
 
-//ncurses functions
-void initialize_ncurses();
-void cleanup_ncurses();
-void display_statistics();
+//statistics functions
 
-//syslog functions
-void log_exceeded_prefix(const std::string &prefix);
+void display_live_statistics();
+void display_offline_statistics();
