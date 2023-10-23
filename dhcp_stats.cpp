@@ -8,7 +8,7 @@
 // main function
 int main(int argc, char *argv[])
 {
+    
     DHCP_monitor(argc, argv);
-    cleanup_ncurses();
     return 0;
 }

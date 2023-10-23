@@ -1,6 +1,6 @@
 // ISA 2023/2024
 // Author : Jiří Štípek (xstipe02)
-// Description: Agrument parser functions
+// Description: Argument parser functions
 
 #include "arg_parser.h"
 
@@ -28,6 +28,7 @@ struct arguments arg_parse(int argc, char *const *argv)
     int opt;
     while ((opt = getopt(argc, argv, "r:i:")) != -1)
     {
+        // parse arguments
         switch (opt)
         {
         case 'r':
@@ -38,7 +39,7 @@ struct arguments arg_parse(int argc, char *const *argv)
             break;
         case '?':
             print_help();
-            exit_program("Unknown option.");
+            exit_program("");
         }
     }
     for (int i = optind; i < argc; i++)
@@ -53,36 +54,27 @@ struct arguments arg_parse(int argc, char *const *argv)
     return args;
 }
 
-// print help
-void print_help()
-{
-    std::cerr << "./dhcp-stats [-r <filename>] [-i <interface-name>] <ip-prefix> [ <ip-prefix> [ ... ] ] \n \
-            -r <filename> - statistika bude vytvořena z pcap souborů \n \
-            -i <interface> - rozhraní, na kterém může program naslouchat \n \
-            <ip-prefix> - rozsah sítě pro které se bude generovat statistika "
-              << std::endl;
-    return;
-}
+
 
 // validate input
 void validate(struct arguments *args)
 {
-    if (args->filename == "NULL" && args->interface == "NULL")
+    if (args->filename == "NULL" && args->interface == "NULL") // if we dont have -r or -i
     {
         print_help();
         exit_program("You must specify either a filename or an interface.");
     }
-    if (args->filename != "NULL" && args->interface != "NULL")
+    if (args->filename != "NULL" && args->interface != "NULL") // if we have both -r and -i
     {
         print_help();
         exit_program("You must specify either a filename or an interface, not both.");
     }
-    if (args->IP_prefixes.size() == 1)
+    if (args->IP_prefixes.size() == 1) // if we dont have ip adress
     {
         print_help();
         exit_program("You must specify at least one IP prefix.");
     }
-    else
+    else // if we have ip adress
     {
         args->IP_prefixes.erase(args->IP_prefixes.begin());
     }
