@@ -47,17 +47,18 @@ struct dhcp_packet
     unsigned char chaddr[MAX_DHCP_CHADDR_LENGTH]; /* hardware address of this machine */
     char sname[MAX_DHCP_SNAME_LENGTH];            /* name of DHCP server */
     char file[MAX_DHCP_FILE_LENGTH];              /* boot file name (used for diskless booting?) */
-    char options[MAX_DHCP_OPTIONS_LENGTH];        /* options */
+ //   char options[MAX_DHCP_OPTIONS_LENGTH];        /* options */
 };
 
 //functions
 
 void DHCP_monitor(int argc, char *argv[]);
+void check_utilization();
+void sigint_handler(int signum);
 
 //pcap functions
 
-pcap_t *open_pcap_live(std::string interface);
-pcap_t *open_pcap_offline(std::string filename);
+pcap_t *open_pcap(pcap_t *handle, std::string filter, bpf_program fp);
 void exit_program(const std::string &message);
 void packet_caller(unsigned char *user_data, const struct pcap_pkthdr *pkthdr, const unsigned char *packet);
 void calculate_overlapping_prefix_utilization(std::string ip_str);
@@ -67,4 +68,3 @@ bool check_IP_address(std::string ip_str);
 //statistics functions
 
 void display_live_statistics();
-void display_offline_statistics();

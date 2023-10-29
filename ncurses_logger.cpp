@@ -4,13 +4,14 @@
 
 #include "ncurses_logger.h"
 
-// Log the given prefix to syslog
 void log_exceeded_prefix(const std::string &prefix)
 {
-    std::string log_message = "prefix " + prefix + " exceeded 50% of allocations.";
-    syslog(LOG_NOTICE, "%s", log_message.c_str());
+    // Log to syslog
+    syslog(LOG_NOTICE, "prefix %s exceeded 50%% of allocations.\n", prefix.c_str());
 
-    std::cout << "prefix %s exceeded 50% of allocations." << prefix << std::endl;
+    // Display in the ncurses window
+    printw("prefix %s exceeded 50%% of allocations.\n", prefix.c_str());
+    refresh();
 }
 
 // Initialize ncurses
@@ -36,14 +37,7 @@ void exit_program(const std::string &message)
     exit(1);
 }
 
-// signal handler for SIGINT
-void sigint_handler(int signum)
-{
-    (void)signum;
-    cleanup_ncurses();
-    closelog();
-    exit(0);
-}
+
 
 // print help
 void print_help()
@@ -53,5 +47,4 @@ void print_help()
             -i <interface> - rozhraní, na kterém může program naslouchat \n \
             <ip-prefix> - rozsah sítě pro které se bude generovat statistika "
               << std::endl;
-
 }

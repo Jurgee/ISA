@@ -4,79 +4,86 @@
 
 #include "dhcp_monitor.h"
 
-// Define a vector to store IPInfo objects
+// Define a vector to store IP_info objects
 std::vector<IPInfo> IP_infos;
-
 // Define a set to store IP addresses that the server has already sent
 std::set<std::string> sent_IPs;
+// Define a pcap_t handle
+pcap_t *handle;
 
 // DHCP main function
 void DHCP_monitor(int argc, char *argv[])
 {
     openlog("dhcp-stats", LOG_PID, LOG_DAEMON); // open syslog
+    initialize_ncurses();                       // Initialize ncurses
+    signal(SIGINT, sigint_handler);             // signal handler for SIGINT
 
     struct arguments args = arg_parse(argc, argv);   // parse arguments
     IP_infos = convert_to_IP_info(args.IP_prefixes); // convert to IP info
 
+    char errbuf[PCAP_ERRBUF_SIZE];
+    std::string filter = "port 67 or port 68";
+    bpf_program fp;
+
     if (args.filename != "NULL") // if we have file -r
     {
-        open_pcap_offline(args.filename);
+        handle = pcap_open_offline(args.filename.c_str(), errbuf);
+        open_pcap(handle, filter, fp);
     }
     else if (args.interface != "NULL") // if we have interface -i
     {
-        open_pcap_live(args.interface);
+        handle = pcap_open_live(args.interface.c_str(), BUFSIZ, 0, 1000, errbuf);
+        open_pcap(handle, filter, fp);
     }
-    closelog(); // Close syslog
 }
 
 // function for packets
 void packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_char *packet)
 {
+    (void)user_data;
+    (void)header;
+
     struct ip *ip_header = (struct ip *)(packet + 14);
     struct ether_header *ethernet = (struct ether_header *)packet;
     struct udphdr *udp_header = (struct udphdr *)(packet + 14 + (ip_header->ip_hl << 2));
-
-    (void)user_data;
-    (void)header;
 
     if (ntohs(ethernet->ether_type) == ETHERTYPE_IP)
     {
         if (udp_header->source == htons(67) || udp_header->dest == htons(68))
         {
             struct dhcp_packet *dhcp = (struct dhcp_packet *)(packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header));
+            const u_char *options = (packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header) + sizeof(dhcp_packet) + 4); // Point to the start of DHCP options + 4 bytes of magic cookie
 
-            // Iterate through the DHCP options
-            for (size_t i = 0; i < MAX_DHCP_OPTIONS_LENGTH; i++)
+            while (options[0] != 255) // The end of options is marked with 255 (0xFF in hexadecimal)
             {
-                if (dhcp->options[i] == 53) // if we have DHCP message type
+                char option_code = options[0]; // The first byte of the option is the option code
+                char option_length = options[1]; // The second byte of the option is the option length
+
+                if (option_code == 53)
                 {
-                    if (dhcp->options[i + 2] == DHCPACK) // if we have DHCPACK
+                    if (option_length >= 1 && options[2] == DHCPACK)
                     {
                         char ip_str[INET_ADDRSTRLEN];
                         inet_ntop(AF_INET, &(dhcp->yiaddr.s_addr), ip_str, INET_ADDRSTRLEN);
 
-                        if (!check_IP_address(ip_str)) // if we have new ip adress
+                        if (!check_IP_address(ip_str))
                         {
                             calculate_overlapping_prefix_utilization(ip_str);
-                            std::sort(IP_infos.begin(), IP_infos.end(), sort_IP_info); // sort by ip_full_name
+                            std::sort(IP_infos.begin(), IP_infos.end(), sort_IP_info);
                         }
                         display_live_statistics();
+                        break;
                     }
                 }
+
+                options += (option_length + 2); // Move to the next option
             }
         }
     }
 }
-
-// pcap functions --live mode
-pcap_t *open_pcap_live(std::string interface)
+// func for open pcap 
+pcap_t *open_pcap(pcap_t *handle, std::string filter, bpf_program fp)
 {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle;
-    std::string filter = "port 67 or port 68";
-    bpf_program fp;
-
-    handle = pcap_open_live(interface.c_str(), BUFSIZ, 0, 1000, errbuf);
     if (handle == nullptr)
     {
         exit_program("Couldn't open device");
@@ -89,56 +96,12 @@ pcap_t *open_pcap_live(std::string interface)
     {
         exit_program("Couldn't install filter");
     }
-
-    initialize_ncurses(); // Initialize ncurses
-    signal(SIGINT, sigint_handler); // signal handler for SIGINT
 
     // Loop through the packets, wait for SIGINT
     while (true)
     {
         pcap_loop(handle, -1, packet_caller, NULL);
     }
-    return nullptr;
-}
-
-// pcap functions --offline mode
-pcap_t *open_pcap_offline(std::string filename)
-{
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle;
-    std::string filter = "port 67 or port 68";
-    bpf_program fp;
-
-    handle = pcap_open_offline(filename.c_str(), errbuf);
-    if (handle == nullptr)
-    {
-        exit_program("Couldn't open device");
-    }
-    if (pcap_compile(handle, &fp, filter.c_str(), 0, 0) == -1)
-    {
-        exit_program("Couldn't parse filter");
-    }
-    if (pcap_setfilter(handle, &fp) == -1)
-    {
-        exit_program("Couldn't install filter");
-    }
-    // Loop through the packets
-    while (true)
-    {
-        struct pcap_pkthdr header;
-        const u_char *packet = pcap_next(handle, &header);
-        if (packet != nullptr)
-        {
-            packet_caller(nullptr, &header, packet);
-        }
-        else
-        {
-            display_offline_statistics();
-            break;
-        }
-    }
-
-    pcap_close(handle); // Close the pcap handle
     return nullptr;
 }
 
@@ -176,7 +139,7 @@ bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet, i
     }
 }
 
-// calculate utilization for each prefix
+// calculate utilization for each ip adress
 void calculate_overlapping_prefix_utilization(std::string ip_str)
 {
     // Iterate through the IPInfo objects
@@ -189,13 +152,6 @@ void calculate_overlapping_prefix_utilization(std::string ip_str)
 
             // Update utilization if needed
             info.utilization = (static_cast<double>(info.allocated_addresses) / static_cast<double>(info.max_hosts)) * 100.0;
-
-            // Check if utilization exceeds 50%
-            if (info.utilization > 50.0)
-            {
-                // Log the message for the exceeded prefix
-                log_exceeded_prefix(info.ip_full_name);
-            }
         }
     }
 }
@@ -204,24 +160,15 @@ void calculate_overlapping_prefix_utilization(std::string ip_str)
 void display_live_statistics()
 {
     clear();
-    printw("IP-Prefix Max-hosts Allocated addresses Utilization\n");
+    printw("IP-Prefix Max-hosts Allocated addresses Utilization\n"); // Print the header
 
+    // Iterate through the IPInfo objects
     for (const IPInfo &info : IP_infos)
     {
         printw("%s %d %d %.2f%%\n", info.ip_full_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
     }
+    check_utilization();
     refresh();
-}
-
-// display statistics in terminal
-void display_offline_statistics()
-{
-    std::cout << "IP-Prefix Max-hosts Allocated addresses Utilization" << std::endl;
-
-    for (const IPInfo &info : IP_infos)
-    {
-        std::cout << info.ip_full_name << " " << info.max_hosts << " " << info.allocated_addresses << " " << std::fixed << std::setprecision(2) << info.utilization << "%" << std::endl;
-    }
 }
 
 // check if we have new ip adress
@@ -239,3 +186,26 @@ bool check_IP_address(std::string ip_str)
     return false;
 }
 
+// check utilization if it is over 50%
+void check_utilization()
+{
+    for (IPInfo &info : IP_infos)
+    {
+        // Check if utilization exceeds 50%
+        if (info.utilization > 50.0)
+        {
+            // Log the message for the exceeded prefix
+            log_exceeded_prefix(info.ip_full_name);
+        }
+    }
+}
+
+// signal handler for SIGINT
+void sigint_handler(int signum)
+{
+    (void)signum;
+    cleanup_ncurses();
+    pcap_close(handle);
+    closelog();
+    exit(0);
+}
