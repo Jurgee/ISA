@@ -67,4 +67,4 @@ bool check_IP_address(std::string ip_str);
 
 //statistics functions
 
-void display_live_statistics();
+void display_statistics();

@@ -15,7 +15,6 @@ pcap_t *handle;
 void DHCP_monitor(int argc, char *argv[])
 {
     openlog("dhcp-stats", LOG_PID, LOG_DAEMON); // open syslog
-    initialize_ncurses();                       // Initialize ncurses
     signal(SIGINT, sigint_handler);             // signal handler for SIGINT
 
     struct arguments args = arg_parse(argc, argv);   // parse arguments
@@ -24,6 +23,8 @@ void DHCP_monitor(int argc, char *argv[])
     char errbuf[PCAP_ERRBUF_SIZE];
     std::string filter = "port 67 or port 68";
     bpf_program fp;
+
+    initialize_ncurses();                       // Initialize ncurses
 
     if (args.filename != "NULL") // if we have file -r
     {
@@ -71,7 +72,7 @@ void packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_
                             calculate_overlapping_prefix_utilization(ip_str);
                             std::sort(IP_infos.begin(), IP_infos.end(), sort_IP_info);
                         }
-                        display_live_statistics();
+                        display_statistics();
                         break;
                     }
                 }
@@ -157,7 +158,7 @@ void calculate_overlapping_prefix_utilization(std::string ip_str)
 }
 
 // display statistics in ncurses window
-void display_live_statistics()
+void display_statistics()
 {
     clear();
     printw("IP-Prefix Max-hosts Allocated addresses Utilization\n"); // Print the header
