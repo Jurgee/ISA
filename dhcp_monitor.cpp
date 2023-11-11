@@ -14,17 +14,16 @@ pcap_t *handle;
 // DHCP main function
 void DHCP_monitor(int argc, char *argv[])
 {
+    setlogmask(LOG_UPTO(LOG_NOTICE));           // set log mask
     openlog("dhcp-stats", LOG_PID, LOG_DAEMON); // open syslog
     signal(SIGINT, sigint_handler);             // signal handler for SIGINT
 
     struct arguments args = arg_parse(argc, argv);   // parse arguments
-    IP_infos = convert_to_IP_info(args.IP_prefixes); // convert to IP info
+    IP_infos = convert_to_IP_info(args.IP_prefixes); // convert to IP infoS
 
     char errbuf[PCAP_ERRBUF_SIZE];
     std::string filter = "port 67 or port 68";
     bpf_program fp;
-
-    initialize_ncurses();                       // Initialize ncurses
 
     if (args.filename != "NULL") // if we have file -r
     {
@@ -41,48 +40,49 @@ void DHCP_monitor(int argc, char *argv[])
 // function for packets
 void packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_char *packet)
 {
-    (void)user_data;
-    (void)header;
+    (void)user_data; // Suppress unused variable warning
+    (void)header;    // Suppress unused variable warning
 
-    struct ip *ip_header = (struct ip *)(packet + 14);
-    struct ether_header *ethernet = (struct ether_header *)packet;
-    struct udphdr *udp_header = (struct udphdr *)(packet + 14 + (ip_header->ip_hl << 2));
+    struct ip *ip_header = (struct ip *)(packet + 14);                                    // Point to the IP header
+    struct ether_header *ethernet = (struct ether_header *)packet;                        // Point to the Ethernet header
+    struct udphdr *udp_header = (struct udphdr *)(packet + 14 + (ip_header->ip_hl << 2)); // Point to the UDP header
 
-    if (ntohs(ethernet->ether_type) == ETHERTYPE_IP)
+    struct dhcp_packet *dhcp = (struct dhcp_packet *)(packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header));
+    const u_char *options = (packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header) + sizeof(dhcp_packet) + 4); // Point to the start of DHCP options + 4 bytes of magic cookie
+
+    if ((ntohs(ethernet->ether_type) == ETHERTYPE_IP) && (udp_header->source == htons(67) || udp_header->dest == htons(68))) // Check if the packet is IPv4 and UDP and if the source port is 67 or the destination port is 68
     {
-        if (udp_header->source == htons(67) || udp_header->dest == htons(68))
+        
+        while (options[0] != 255) // The end of options is marked with 255 (0xFF in hexadecimal)
         {
-            struct dhcp_packet *dhcp = (struct dhcp_packet *)(packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header));
-            const u_char *options = (packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header) + sizeof(dhcp_packet) + 4); // Point to the start of DHCP options + 4 bytes of magic cookie
+            
+            char option_code = options[0];   // The first byte of the option is the option code
+            char option_length = options[1]; // The second byte of the option is the option length
 
-            while (options[0] != 255) // The end of options is marked with 255 (0xFF in hexadecimal)
+            if (option_code == 53 && option_length >= 1 && options[2] == DHCPACK) // Check if the option code is 53 (DHCP message type) and check if the DHCPACK is set
             {
-                char option_code = options[0]; // The first byte of the option is the option code
-                char option_length = options[1]; // The second byte of the option is the option length
-
-                if (option_code == 53)
+                
+                if (dhcp->yiaddr.s_addr == 0) // yiaddr is 0.0.0.0, it is DHCPINFORM
                 {
-                    if (option_length >= 1 && options[2] == DHCPACK)
-                    {
-                        char ip_str[INET_ADDRSTRLEN];
-                        inet_ntop(AF_INET, &(dhcp->yiaddr.s_addr), ip_str, INET_ADDRSTRLEN);
-
-                        if (!check_IP_address(ip_str))
-                        {
-                            calculate_overlapping_prefix_utilization(ip_str);
-                            std::sort(IP_infos.begin(), IP_infos.end(), sort_IP_info);
-                        }
-                        display_statistics();
-                        break;
-                    }
+                    break; // Break out of the loop
                 }
+                char ip_str[INET_ADDRSTRLEN]; 
+                inet_ntop(AF_INET, &(dhcp->yiaddr.s_addr), ip_str, INET_ADDRSTRLEN); 
 
-                options += (option_length + 2); // Move to the next option
+                if (!check_IP_address(ip_str)) // Check if the IP address has already been sent
+                {
+                    calculate_overlapping_prefix_utilization(ip_str);
+                    std::sort(IP_infos.begin(), IP_infos.end(), sort_IP_info);
+                }
+                display_statistics(); // Display the statistics
+                break;
             }
+            options += (option_length + 2); // Move to the next option
         }
     }
+    display_statistics(); // Display empty statistics
 }
-// func for open pcap 
+// func for open pcap
 pcap_t *open_pcap(pcap_t *handle, std::string filter, bpf_program fp)
 {
     if (handle == nullptr)
@@ -97,8 +97,9 @@ pcap_t *open_pcap(pcap_t *handle, std::string filter, bpf_program fp)
     {
         exit_program("Couldn't install filter");
     }
-
+    initialize_ncurses(); // Initialize ncurses
     // Loop through the packets, wait for SIGINT
+    
     while (true)
     {
         pcap_loop(handle, -1, packet_caller, NULL);
@@ -166,7 +167,7 @@ void display_statistics()
     // Iterate through the IPInfo objects
     for (const IPInfo &info : IP_infos)
     {
-        printw("%s %d %d %.2f%%\n", info.ip_full_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
+        printw("%s %u %u %.2f%%\n", info.ip_full_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
     }
     check_utilization();
     refresh();

@@ -4,6 +4,7 @@
 
 #include "ncurses_logger.h"
 
+// if we have more than 50% of IP addresses allocated, log it
 void log_exceeded_prefix(const std::string &prefix)
 {
     // Log to syslog

@@ -18,7 +18,7 @@ std::vector<IPInfo> convert_to_IP_info(const std::vector<std::string> &prefixes)
             int prefix_length = std::stoi(prefix.substr(slash_pos + 1));
 
             // max hosts for given prefix
-            int max_hosts = calculate_max_hosts(prefix_length);
+            unsigned int max_hosts = calculate_max_hosts(prefix_length);
 
             // push IPInfo to vector
             IPInfos.push_back(IPInfo(ip_fullname, ip_name, prefix_length, max_hosts, 0, 0.0));
@@ -32,9 +32,9 @@ std::vector<IPInfo> convert_to_IP_info(const std::vector<std::string> &prefixes)
 }
 
 // calculate max hosts for given prefix
-int calculate_max_hosts(int prefix_length)
+unsigned int calculate_max_hosts(int prefix_length)
 {
-    int max_hosts = pow(2, (32 - prefix_length)) - 2;
+    unsigned int max_hosts = pow(2, (32 - prefix_length)) - 2;
     return max_hosts;
 }
 

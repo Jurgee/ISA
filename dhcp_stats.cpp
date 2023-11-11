@@ -8,7 +8,6 @@
 // main function
 int main(int argc, char *argv[])
 {
-    
     DHCP_monitor(argc, argv);
     return 0;
 }
