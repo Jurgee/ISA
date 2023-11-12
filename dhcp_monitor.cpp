@@ -52,16 +52,13 @@ void packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_
 
     if ((ntohs(ethernet->ether_type) == ETHERTYPE_IP) && (udp_header->source == htons(67) || udp_header->dest == htons(68))) // Check if the packet is IPv4 and UDP and if the source port is 67 or the destination port is 68
     {
-        
         while (options[0] != 255) // The end of options is marked with 255 (0xFF in hexadecimal)
         {
-            
             char option_code = options[0];   // The first byte of the option is the option code
             char option_length = options[1]; // The second byte of the option is the option length
 
             if (option_code == 53 && option_length >= 1 && options[2] == DHCPACK) // Check if the option code is 53 (DHCP message type) and check if the DHCPACK is set
             {
-                
                 if (dhcp->yiaddr.s_addr == 0) // yiaddr is 0.0.0.0, it is DHCPINFORM
                 {
                     break; // Break out of the loop
@@ -80,7 +77,6 @@ void packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_
             options += (option_length + 2); // Move to the next option
         }
     }
-    display_statistics(); // Display empty statistics
 }
 // func for open pcap
 pcap_t *open_pcap(pcap_t *handle, std::string filter, bpf_program fp)
@@ -99,7 +95,6 @@ pcap_t *open_pcap(pcap_t *handle, std::string filter, bpf_program fp)
     }
     initialize_ncurses(); // Initialize ncurses
     // Loop through the packets, wait for SIGINT
-    
     while (true)
     {
         pcap_loop(handle, -1, packet_caller, NULL);
@@ -167,7 +162,7 @@ void display_statistics()
     // Iterate through the IPInfo objects
     for (const IPInfo &info : IP_infos)
     {
-        printw("%s %u %u %.2f%%\n", info.ip_full_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
+        printw("%s %d %d %.2f%%\n", info.ip_full_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
     }
     check_utilization();
     refresh();
