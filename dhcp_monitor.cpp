@@ -14,12 +14,12 @@ pcap_t *handle;
 // DHCP main function
 void DHCP_monitor(int argc, char *argv[])
 {
-    setlogmask(LOG_UPTO(LOG_NOTICE));           // set log mask
-    openlog("dhcp-stats", LOG_PID, LOG_DAEMON); // open syslog
-    signal(SIGINT, sigint_handler);             // signal handler for SIGINT
+    openlog("dhcp-stats", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER); // open syslog
+    signal(SIGINT, sigint_handler);                                   // signal handler for SIGINT
+    signal(SIGTERM, sigterm_handler);                                // signal handler for SIGTERM
 
     struct arguments args = arg_parse(argc, argv);   // parse arguments
-    IP_infos = convert_to_IP_info(args.IP_prefixes); // convert to IP infoS
+    IP_infos = convert_to_IP_info(args.IP_prefixes); // convert to IP info
 
     char errbuf[PCAP_ERRBUF_SIZE];
     std::string filter = "port 67 or port 68";
@@ -37,47 +37,6 @@ void DHCP_monitor(int argc, char *argv[])
     }
 }
 
-// function for packets
-void packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_char *packet)
-{
-    (void)user_data; // Suppress unused variable warning
-    (void)header;    // Suppress unused variable warning
-
-    struct ip *ip_header = (struct ip *)(packet + 14);                                    // Point to the IP header
-    struct ether_header *ethernet = (struct ether_header *)packet;                        // Point to the Ethernet header
-    struct udphdr *udp_header = (struct udphdr *)(packet + 14 + (ip_header->ip_hl << 2)); // Point to the UDP header
-
-    struct dhcp_packet *dhcp = (struct dhcp_packet *)(packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header));
-    const u_char *options = (packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header) + sizeof(dhcp_packet) + 4); // Point to the start of DHCP options + 4 bytes of magic cookie
-
-    if ((ntohs(ethernet->ether_type) == ETHERTYPE_IP) && (udp_header->source == htons(67) || udp_header->dest == htons(68))) // Check if the packet is IPv4 and UDP and if the source port is 67 or the destination port is 68
-    {
-        while (options[0] != 255) // The end of options is marked with 255 (0xFF in hexadecimal)
-        {
-            char option_code = options[0];   // The first byte of the option is the option code
-            char option_length = options[1]; // The second byte of the option is the option length
-
-            if (option_code == 53 && option_length >= 1 && options[2] == DHCPACK) // Check if the option code is 53 (DHCP message type) and check if the DHCPACK is set
-            {
-                if (dhcp->yiaddr.s_addr == 0) // yiaddr is 0.0.0.0, it is DHCPINFORM
-                {
-                    break; // Break out of the loop
-                }
-                char ip_str[INET_ADDRSTRLEN]; 
-                inet_ntop(AF_INET, &(dhcp->yiaddr.s_addr), ip_str, INET_ADDRSTRLEN); 
-
-                if (!check_IP_address(ip_str)) // Check if the IP address has already been sent
-                {
-                    calculate_overlapping_prefix_utilization(ip_str);
-                    std::sort(IP_infos.begin(), IP_infos.end(), sort_IP_info);
-                }
-                display_statistics(); // Display the statistics
-                break;
-            }
-            options += (option_length + 2); // Move to the next option
-        }
-    }
-}
 // func for open pcap
 pcap_t *open_pcap(pcap_t *handle, std::string filter, bpf_program fp)
 {
@@ -94,12 +53,64 @@ pcap_t *open_pcap(pcap_t *handle, std::string filter, bpf_program fp)
         exit_program("Couldn't install filter");
     }
     initialize_ncurses(); // Initialize ncurses
+
     // Loop through the packets, wait for SIGINT
     while (true)
     {
         pcap_loop(handle, -1, packet_caller, NULL);
     }
     return nullptr;
+}
+
+// function for packets
+void packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_char *packet)
+{
+    (void)user_data; // Suppress unused variable warning
+    (void)header;    // Suppress unused variable warning
+
+    struct ip *ip_header = (struct ip *)(packet + 14);                                    // Point to the IP header
+    struct ether_header *ethernet = (struct ether_header *)packet;                        // Point to the Ethernet header
+    struct udphdr *udp_header = (struct udphdr *)(packet + 14 + (ip_header->ip_hl << 2)); // Point to the UDP header
+
+    struct dhcp_packet *dhcp = (struct dhcp_packet *)(packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header));
+    const u_char *options = (packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header) + sizeof(dhcp_packet) + 4); // Point to the start of DHCP options + 4 bytes of magic cookie
+
+    // bool sname, file = false; // check sname or file
+
+    if ((ntohs(ethernet->ether_type) == ETHERTYPE_IP) && (udp_header->source == htons(67) || udp_header->dest == htons(68))) // Check if the packet is IPv4 and UDP and if the source port is 67 or the destination port is 68
+    {
+        check_options(dhcp, options); // Check the options
+    }
+    display_statistics(); // Display empty statistics
+}
+
+// func for check options in DHCP packet
+void check_options(struct dhcp_packet *dhcp, const u_char *options)
+{
+    while (options[0] != 255) // The end of options is marked with 255 (0xFF in hexadecimal)
+    {
+        char option_code = options[0];   // The first byte of the option is the option code
+        char option_length = options[1]; // The second byte of the option is the option length
+
+        if (option_code == 53 && option_length >= 1 && options[2] == DHCPACK) // Check if the option code is 53 (DHCP message type) and check if the DHCPACK is set
+        {
+            char ip_str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(dhcp->yiaddr.s_addr), ip_str, INET_ADDRSTRLEN);
+
+            if (strcmp(ip_str, "0.0.0.0") == 0) // yiaddr is 0.0.0.0, it is DHCPINFORM
+            {
+                break; // Skip processing
+            }
+
+            if (!check_IP_address(ip_str)) // Check if the IP address has already been sent
+            {
+                calculate_overlapping_prefix_utilization(ip_str); // Calculate the utilization for the IP address
+            }
+            display_statistics(); // Display the statistics
+            break;
+        }
+        options += (option_length + 2); // Move to the next option
+    }
 }
 
 // func for address in subnet
@@ -126,7 +137,8 @@ bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet, i
     subnetAddress.s_addr = networkAddr.s_addr & subnetMask.s_addr;
 
     // Check if the IP address falls within the subnet
-    if ((ipAddr.s_addr & subnetMask.s_addr) == subnetAddress.s_addr)
+    if ((ipAddr.s_addr & subnetMask.s_addr) == subnetAddress.s_addr &&                                             // Check if the IP address is in the subnet
+        (ipAddr.s_addr != subnetAddress.s_addr) && (ipAddr.s_addr != (subnetAddress.s_addr | ~subnetMask.s_addr))) // Check if the IP address is not the network address or the broadcast address
     {
         return true; // IP address is within the subnet
     }
@@ -136,7 +148,7 @@ bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet, i
     }
 }
 
-// calculate utilization for each ip adress
+// calculate utilization for each IP adress
 void calculate_overlapping_prefix_utilization(std::string ip_str)
 {
     // Iterate through the IPInfo objects
@@ -144,26 +156,30 @@ void calculate_overlapping_prefix_utilization(std::string ip_str)
     {
         if (is_IP_address_in_subnet(ip_str, info.ip_name, info.prefix))
         {
-            // Increment the count for the prefix in IPInfo
-            info.allocated_addresses++;
+            if (info.utilization < 100.0) // Check if the utilization is not 100%
+            {
+                // Increment the count for the prefix in IPInfo
+                info.allocated_addresses++;
 
-            // Update utilization if needed
-            info.utilization = (static_cast<double>(info.allocated_addresses) / static_cast<double>(info.max_hosts)) * 100.0;
+                // Update utilization if needed
+                info.utilization = (static_cast<double>(info.allocated_addresses) / static_cast<double>(info.max_hosts)) * 100.0;
+            }
         }
     }
 }
 
-// display statistics in ncurses window
 void display_statistics()
 {
-    clear();
-    printw("IP-Prefix Max-hosts Allocated addresses Utilization\n"); // Print the header
+    std::sort(IP_infos.begin(), IP_infos.end(), sort_IP_info); // Sort the IPInfo objects
 
     // Iterate through the IPInfo objects
-    for (const IPInfo &info : IP_infos)
+    for (size_t i = 0; i < IP_infos.size(); ++i)
     {
-        printw("%s %d %d %.2f%%\n", info.ip_full_name.c_str(), info.max_hosts, info.allocated_addresses, info.utilization);
+        move(i + 1, 0); // Move to the next line after the header
+        clrtoeol();     // Clear the line
+        printw("%s %u %u %.2f%%\n", IP_infos[i].ip_full_name.c_str(), IP_infos[i].max_hosts, IP_infos[i].allocated_addresses, IP_infos[i].utilization);
     }
+
     check_utilization();
     refresh();
 }
@@ -199,6 +215,15 @@ void check_utilization()
 
 // signal handler for SIGINT
 void sigint_handler(int signum)
+{
+    (void)signum;
+    cleanup_ncurses();
+    pcap_close(handle);
+    closelog();
+    exit(0);
+}
+
+void sigterm_handler(int signum)
 {
     (void)signum;
     cleanup_ncurses();

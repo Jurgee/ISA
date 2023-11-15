@@ -1,8 +1,14 @@
+// ISA 2023/2024
+// Author : Jiří Štípek (xstipe02)
+
+#ifndef IP_INFO
+#define IP_INFO
+
 #include <iostream>
 #include <string>
 #include <vector>
 #include <cmath>
-
+#include "ncurses_logger.h"
 // Struct for storing IP info
 struct IPInfo
 {
@@ -17,7 +23,9 @@ struct IPInfo
         : ip_full_name(fullname), ip_name(name), prefix(p), max_hosts(max), allocated_addresses(allocated), utilization(util) {}
 };
 
-//functions
+// functions
 std::vector<IPInfo> convert_to_IP_info(const std::vector<std::string> &prefixes);
 unsigned int calculate_max_hosts(int prefix_length);
 bool sort_IP_info(const IPInfo &a, const IPInfo &b);
+
+#endif // IP_INFO

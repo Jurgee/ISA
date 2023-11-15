@@ -1,3 +1,9 @@
+// ISA 2023/2024
+// Author : Jiří Štípek (xstipe02)
+
+#ifndef ARG_PARSER
+#define ARG_PARSER
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -22,5 +28,7 @@ struct arguments
 bool is_IPv4_valid(const std::vector<std::string> &ipAddresses);
 // main function to parse
 struct arguments arg_parse(int argc, char *const *argv);
-
+// func to validate arguments
 void validate(struct arguments *args);
+
+#endif // ARG_PARSER

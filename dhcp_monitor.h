@@ -1,3 +1,9 @@
+// ISA 2023/2024
+// Author : Jiří Štípek (xstipe02)
+
+#ifndef DHCP_MONITOR
+#define DHCP_MONITOR
+
 #include <arpa/inet.h>
 #include <pcap/pcap.h>
 #include <cstdlib>
@@ -13,7 +19,7 @@
 #include <syslog.h>
 #include "ncurses_logger.h"
 #include <set>
-#include <iomanip> 
+#include <iomanip>
 #include <csignal>
 
 #define MAX_DHCP_CHADDR_LENGTH 16
@@ -30,7 +36,7 @@
 #define DHCPNACK 6
 #define DHCPRELEASE 7
 
-//struct for dhcp packet
+// struct for dhcp packet
 struct dhcp_packet
 {
     u_int8_t op;                                  /* packet type */
@@ -49,13 +55,15 @@ struct dhcp_packet
     char file[MAX_DHCP_FILE_LENGTH];              /* boot file name (used for diskless booting?) */
 };
 
-//functions
+// functions
 
 void DHCP_monitor(int argc, char *argv[]);
 void check_utilization();
 void sigint_handler(int signum);
+void sigterm_handler(int signum);
+void check_options(struct dhcp_packet *dhcp, const u_char *options);
 
-//pcap functions
+// pcap functions
 
 pcap_t *open_pcap(pcap_t *handle, std::string filter, bpf_program fp);
 void exit_program(const std::string &message);
@@ -64,6 +72,8 @@ void calculate_overlapping_prefix_utilization(std::string ip_str);
 bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet, int prefix);
 bool check_IP_address(std::string ip_str);
 
-//statistics functions
+// statistics functions
 
 void display_statistics();
+
+#endif // DHCP_MONITOR
