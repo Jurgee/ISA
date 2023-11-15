@@ -113,7 +113,7 @@ void check_options(struct dhcp_packet *dhcp, const u_char *options)
     }
 }
 
-// func for address in subnet
+// func for check if IP address is in subnet
 bool is_IP_address_in_subnet(const std::string &ip, const std::string &subnet, int prefix)
 {
     struct in_addr ipAddr, networkAddr, subnetMask, subnetAddress;
@@ -168,10 +168,11 @@ void calculate_overlapping_prefix_utilization(std::string ip_str)
     }
 }
 
+// func for display statistics
 void display_statistics()
 {
     std::sort(IP_infos.begin(), IP_infos.end(), sort_IP_info); // Sort the IPInfo objects
-
+    
     // Iterate through the IPInfo objects
     for (size_t i = 0; i < IP_infos.size(); ++i)
     {
@@ -223,6 +224,7 @@ void sigint_handler(int signum)
     exit(0);
 }
 
+// signal handler for SIGTERM
 void sigterm_handler(int signum)
 {
     (void)signum;

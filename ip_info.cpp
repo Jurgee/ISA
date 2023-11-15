@@ -27,14 +27,14 @@ std::vector<IPInfo> convert_to_IP_info(const std::vector<std::string> &prefixes)
             bool duplicate = false;
             for (const auto &info : IP_infos)
             {
-                if (info.ip_full_name == ip_fullname)
+                if (info.ip_full_name == ip_fullname) // Check if the IP address is already in the vector
                 {
-                    duplicate = true;
+                    duplicate = true; 
                     break;
                 }
             }
 
-            if (!duplicate)
+            if (!duplicate) // If the IP address is not in the vector
             {
                 // max hosts for given prefix
                 unsigned int max_hosts = calculate_max_hosts(prefix_length);

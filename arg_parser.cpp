@@ -35,7 +35,7 @@ struct arguments arg_parse(int argc, char *const *argv)
         switch (opt)
         {
         case 'r': // -r filename
-            if (filename)
+            if (filename) // if we have -r more than once
             {
                 print_help();
                 exit_program("You can specify only one filename.");
@@ -45,7 +45,7 @@ struct arguments arg_parse(int argc, char *const *argv)
             break;
 
         case 'i': // -i interface
-            if (interface)
+            if (interface) // if we have -i more than once
             {
                 print_help();
                 exit_program("You can specify only one interface.");
