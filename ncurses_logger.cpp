@@ -23,6 +23,19 @@ void log_exceeded_prefix(const std::string &prefix)
     refresh();
 }
 
+// output log to stdout
+void output_log()
+{
+    if (!exceeded_prefixes.empty())
+    {
+        std::cout << "Exceeded Prefixes:\n";
+        for (const auto& prefix : exceeded_prefixes)
+        {
+            std::cout << prefix << "\n";
+        }
+    }
+}
+
 // Initialize ncurses
 void initialize_ncurses()
 {

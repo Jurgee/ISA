@@ -16,5 +16,6 @@ void initialize_ncurses();
 void cleanup_ncurses();
 void exit_program(const std::string &message);
 void print_help();
+void output_log();
 
 #endif // NCURSES_LOGGER

@@ -10,20 +10,23 @@ std::vector<IPInfo> IP_infos;
 std::set<std::string> sent_IPs;
 // Define a pcap_t handle
 pcap_t *handle;
+// Define a bpf_program
+bpf_program fp;
 
 // DHCP main function
 void DHCP_monitor(int argc, char *argv[])
 {
     openlog("dhcp-stats", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER); // open syslog
-    signal(SIGINT, sigint_handler);                                   // signal handler for SIGINT
-    signal(SIGTERM, sigterm_handler);                                // signal handler for SIGTERM
+
+    signal(SIGINT, handler);                                 // signal handler for SIGINT
+    signal(SIGTERM, handler);                                // signal handler for SIGTERM
+    signal(SIGKILL, handler);                                // signal handler for SIGKILL
 
     struct arguments args = arg_parse(argc, argv);   // parse arguments
     IP_infos = convert_to_IP_info(args.IP_prefixes); // convert to IP info
 
     char errbuf[PCAP_ERRBUF_SIZE];
     std::string filter = "port 67 or port 68";
-    bpf_program fp;
 
     if (args.filename != "NULL") // if we have file -r
     {
@@ -70,29 +73,32 @@ void packet_caller(u_char *user_data, const struct pcap_pkthdr *header, const u_
 
     struct ip *ip_header = (struct ip *)(packet + 14);                                    // Point to the IP header
     struct ether_header *ethernet = (struct ether_header *)packet;                        // Point to the Ethernet header
-    struct udphdr *udp_header = (struct udphdr *)(packet + 14 + (ip_header->ip_hl << 2)); // Point to the UDP header
 
-    struct dhcp_packet *dhcp = (struct dhcp_packet *)(packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header));
+    struct dhcp_packet *dhcp = (struct dhcp_packet *)(packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header)); 
     const u_char *options = (packet + sizeof(struct udphdr) + sizeof(struct ip) + sizeof(struct ether_header) + sizeof(dhcp_packet) + 4); // Point to the start of DHCP options + 4 bytes of magic cookie
-
-    // bool sname, file = false; // check sname or file
-
-    if ((ntohs(ethernet->ether_type) == ETHERTYPE_IP) && (udp_header->source == htons(67) || udp_header->dest == htons(68))) // Check if the packet is IPv4 and UDP and if the source port is 67 or the destination port is 68
+    int options_lenght =  ip_header->ip_len + 14 - (sizeof(struct ip) + sizeof(struct udphdr) + sizeof(struct dhcp_packet)); // Calculate the length of the options
+     
+    if (ntohs(ip_header->ip_len) < (sizeof(struct ip) + sizeof(struct udphdr) + sizeof(struct dhcp_packet))) // Check if the packet is large enough for DHCP
     {
-        check_options(dhcp, options); // Check the options
+        return; // Skip processing
+    }
+
+    if ((ntohs(ethernet->ether_type) == ETHERTYPE_IP)) // Check if the packet is IPv4 and UDP
+    {
+        check_options(dhcp, options, options_lenght); // Check the options
     }
     display_statistics(); // Display empty statistics
 }
 
 // func for check options in DHCP packet
-void check_options(struct dhcp_packet *dhcp, const u_char *options)
+void check_options(struct dhcp_packet *dhcp, const u_char *options,  int options_lenght)
 {
-    while (options[0] != 255) // The end of options is marked with 255 (0xFF in hexadecimal)
+    while (options[0] != 255 && options_lenght > 0) // The end of options is marked with 255 (0xFF in hexadecimal) and the length of the options is greater than 0
     {
         char option_code = options[0];   // The first byte of the option is the option code
         char option_length = options[1]; // The second byte of the option is the option length
 
-        if (option_code == 53 && option_length >= 1 && options[2] == DHCPACK) // Check if the option code is 53 (DHCP message type) and check if the DHCPACK is set
+        if (option_code == 53 && option_length == 1 && options[2] == DHCPACK) // Check if the option code is 53 (DHCP message type) and check if the DHCPACK is set
         {
             char ip_str[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(dhcp->yiaddr.s_addr), ip_str, INET_ADDRSTRLEN);
@@ -110,6 +116,7 @@ void check_options(struct dhcp_packet *dhcp, const u_char *options)
             break;
         }
         options += (option_length + 2); // Move to the next option
+        options_lenght -= (option_length + 2); // Decrease the length of the options
     }
 }
 
@@ -214,22 +221,15 @@ void check_utilization()
     }
 }
 
-// signal handler for SIGINT
-void sigint_handler(int signum)
+// signal handler for SIGINT, SIGTERM, SIGKILL
+void handler(int signum)
 {
     (void)signum;
     cleanup_ncurses();
     pcap_close(handle);
+    pcap_freecode(&fp);
     closelog();
+    output_log();
     exit(0);
 }
 
-// signal handler for SIGTERM
-void sigterm_handler(int signum)
-{
-    (void)signum;
-    cleanup_ncurses();
-    pcap_close(handle);
-    closelog();
-    exit(0);
-}

@@ -59,9 +59,8 @@ struct dhcp_packet
 
 void DHCP_monitor(int argc, char *argv[]);
 void check_utilization();
-void sigint_handler(int signum);
-void sigterm_handler(int signum);
-void check_options(struct dhcp_packet *dhcp, const u_char *options);
+void handler(int signum);
+void check_options(struct dhcp_packet *dhcp, const u_char *options,  int options_lenght);
 
 // pcap functions
 
