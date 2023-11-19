@@ -1,0 +1,43 @@
+.TH DHCP-STATS 1
+.SH NAME
+dhcp-stats \- Monitor DHCP traffic and provide statistics on IP address allocations.
+.SH SYNOPSIS
+.B ./dhcp-stats
+[\fB-r\fR \fIFILENAME\fR]
+[\fB-i\fR \fIINTERFACE-NAME\fR]
+\fI<ip-prefix\fR [ \fI<ip-prefix\fR [ ... ] ]\fR]
+.SH DESCRIPTION
+.B dhcp-stats
+monitors DHCP traffic on the specified interface and generates statistics on IP address allocations. It can also process pcap files containing DHCP traffic.
+.SH OPTIONS
+.TP
+.BR \-r ", " \-\-filename =\fIFILENAME\fR
+Use pcap files (\fIFILENAME\fR) for statistics instead of real-time monitoring.
+.TP
+.BR \-i ", " \-\-interface =\fIINTERFACE-NAME\fR
+Specify the network interface (\fIINTERFACE-NAME\fR) to monitor DHCP traffic.
+.TP
+.BR \ip-prefix ", " \fI<ip-prefix>\fR [ \fI<ip-prefix>\fR [ ... ] ]\fR]
+One or more IP prefixes for which to generate statistics.
+.SH OUTPUT
+The output displays information about the utilization of each specified IP prefix in the following format:
+.BR
+.IP "\fIIP-Prefix\fR \fIMax-hosts\fR \fIAllocated addresses\fR \fIUtilization\fR"
+.IP "192.168.0.0/22 1022 123 12.04%"
+.IP "192.168.1.0/24 254 123 48.43%"
+.IP "172.16.32.0/24 254 15 5.9%"
+.SH LOGGING
+If the number of allocated addresses in a prefix exceeds 50%, the following message is logged to syslog:
+.BR
+.IP "prefix \fIx.x.x.x/y\fR exceeded 50% of allocations."
+.SH EXAMPLES
+.BR
+.IP "./dhcp-stats -i eth0 192.168.1.0/24 172.16.32.0/24 192.168.0.0/22"
+.SH
+This command runs the program on the eth0 interface and monitors the utilization of three different IP prefixes.
+.BR
+.IP "./dhcp-stats -r dhcp.pcap 192.168.1.0/24 172.16.32.0/24 192.168.0.0/22
+.SH
+This command runs the program on the dhcp.pcap file and monitors the utilization of three different IP prefixes.
+.BR
+
