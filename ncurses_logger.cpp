@@ -23,7 +23,7 @@ void log_exceeded_prefix(const std::string &prefix)
     refresh();
 }
 
-// output log to stdout
+// output exceeded prefixes to stdout
 void output_log()
 {
     if (!exceeded_prefixes.empty())
