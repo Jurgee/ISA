@@ -16,8 +16,6 @@ bpf_program fp;
 // DHCP main function
 void DHCP_monitor(int argc, char *argv[])
 {
-    openlog("dhcp-stats", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER); // open syslog
-
     signal(SIGINT, handler);                                 // signal handler for SIGINT
     signal(SIGTERM, handler);                                // signal handler for SIGTERM
     signal(SIGKILL, handler);                                // signal handler for SIGKILL
@@ -55,8 +53,10 @@ pcap_t *open_pcap(pcap_t *handle, std::string filter, bpf_program fp)
     {
         exit_program("Couldn't install filter");
     }
-    initialize_ncurses(); // Initialize ncurses
 
+    initialize_ncurses(); // Initialize ncurses
+    openlog("dhcp-stats", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER); // open syslog
+    
     // Loop through the packets, wait for SIGINT
     while (true)
     {

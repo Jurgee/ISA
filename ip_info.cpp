@@ -17,7 +17,7 @@ std::vector<IPInfo> convert_to_IP_info(const std::vector<std::string> &prefixes)
             std::string ip_name = prefix.substr(0, slash_pos);
             int prefix_length = std::stoi(prefix.substr(slash_pos + 1));
 
-            if (prefix_length > 32)
+            if (prefix_length > 31)
             {
                 // invalid prefix length
                 exit_program("Invalid network prefix format: " + prefix);
