@@ -8,8 +8,23 @@
 This tool focuses on monitoring DHCP traffic and collecting statistics on the utilization of a network prefix based on assigned IP addresses. If the network prefix utilization exceeds 50%, the tool notifies the administrator through standard output and logs the event via a syslog server. This project enables the monitoring of IP address availability in the network and facilitates a prompt response to potential issues.
 
 ## Limitations
-The tool is limited to IPv4 addresses only. Tunneling is not supported. Both interface and filename work with ncurses library.
-To exit the program, the user has to press Ctrl+C for the signal.
+IPv4 addresses only:
+The tool is designed to work exclusively with IPv4 addresses. Support for IPv6 or other address types is not included.
+
+No tunneling support:
+Tunneling functionality is not supported in this tool. It operates solely within the constraints of IPv4 networking.
+
+Interface and filename utilizing ncurses:
+Both the interface and filename functionalities are built using the ncurses library, providing a streamlined and user-friendly experience.
+
+Exit signal:
+To exit the program gracefully, users are required to press Ctrl+C, which sends the interrupt signal for termination.
+
+Prefix of 32 not supported:
+The program does not support a prefix length of 32. This limitation is due to considerations related to broadcast and network requirements.
+
+Single subnet range support:
+The tool currently supports only the first subnet range. Multiple subnet ranges are not accommodated within the current scope.
 
 ## Usage
 For usage there is `print_help()` function which prints help message. 
@@ -41,6 +56,7 @@ IP-Prefix Max-hosts Allocated addresses Utilization
 - ncurses_logger.h - header file for ncurses_logger.cpp
 
 - Makefile - makefile for compilation
-- README.md - readme file
+- README - readme file
 - manual.pdf - manual for this project
+- dhcp-stats.1 - man page for this project
 
